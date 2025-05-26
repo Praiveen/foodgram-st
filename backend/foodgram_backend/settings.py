@@ -37,7 +37,9 @@ if DEBUG:
 else:
     _allowed_hosts_env = os.getenv("DJANGO_ALLOWED_HOSTS")
     if _allowed_hosts_env:
-        ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_env.split(',')]
+        ALLOWED_HOSTS = [
+            host.strip() for host in _allowed_hosts_env.split(',')
+        ]
     else:
         raise ValueError(
             "DJANGO_ALLOWED_HOSTS environment variable must be set "
