@@ -26,25 +26,22 @@ SECRET_KEY = os.getenv(
     "django-insecure-pb9^w^o(9i)f_jqx82#cxff3aav(!j3%qo%k3saa=h*5_vda=_"
 )
 
-# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() != 'false'
 
-# DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
-DEBUG = True
-
-_allowed_hosts_env = os.getenv("DJANGO_ALLOWED_HOSTS")
-if _allowed_hosts_env:
-    ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_env.split(',')]
+if DEBUG:
+    ALLOWED_HOSTS = [
+        '192.168.99.100',
+        'localhost',
+        '127.0.0.1',
+    ]
 else:
-    if DEBUG:
-        ALLOWED_HOSTS = [
-            '192.168.99.100',
-            'localhost',
-            '127.0.0.1'
-            ]
+    _allowed_hosts_env = os.getenv("DJANGO_ALLOWED_HOSTS")
+    if _allowed_hosts_env:
+        ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_env.split(',')]
     else:
         raise ValueError(
             "DJANGO_ALLOWED_HOSTS environment variable must be set "
-            "when DEBUG is False"
+            "when DEBUG is False (i.e., in production)."
         )
 
 

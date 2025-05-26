@@ -1,6 +1,7 @@
 name: CI Pipeline
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "main" ]
   
@@ -22,8 +23,6 @@ jobs:
       run: pip install -r backend/requirements.txt
 
     - name: Run Django tests
-      env:
-        pass
       run: python backend/manage.py test
       
       
