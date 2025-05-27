@@ -8,7 +8,7 @@ class UserAdmin(BaseUserAdmin):
     """Админка для пользователей."""
 
     list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff')
-    search_fields = ('email', 'username')
+    search_fields = ('email', 'username', 'first_name', 'last_name')
     list_filter = ('is_staff', 'is_superuser', 'is_active')
 
 

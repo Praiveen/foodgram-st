@@ -39,12 +39,11 @@ services:
   nginx:
     container_name: foodgram-gateway
     build:
-      context: .
-      dockerfile: nginx.Dockerfile
+      context: ..
+      dockerfile: infra/nginx.Dockerfile
     volumes:
       - static_volume:/staticfiles
       - media_volume:/media
-      - ../docs/:/usr/share/nginx/html/api/docs/
     ports:
       - "80:80"
     depends_on:
