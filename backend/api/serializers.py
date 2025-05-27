@@ -22,39 +22,12 @@ class RecipeMinifiedForUserSerializer(serializers.ModelSerializer):
     """Сериализатор для минимизированного представления рецептов."""
 
     class Meta:
-        """Мета-класс для RecipeMinifiedForUserSerializer."""
+        """Мета-класс."""
 
         from recipes.models import Recipe as ActualRecipe
         model = ActualRecipe
         fields = ('id', 'name', 'image', 'cooking_time')
         read_only_fields = fields
-
-
-# class Base64ImageField(serializers.ImageField):
-#     """Поле для изображений, закодированных в Base64."""
-
-#     def to_internal_value(self, data):
-#         """Преобразование Base64 в файл."""
-#         if isinstance(data, str) and data.startswith('data:image'):
-#             try:
-#                 format_str, imgstr = data.split(';base64,')
-#                 ext = format_str.split('/')[-1]
-#                 if ext not in ['jpeg', 'jpg', 'png', 'gif']:
-#                     raise serializers.ValidationError(
-#                         'Unsupported image format. Allowed: JPEG, PNG, GIF.'
-#                     )
-#                 decoded_file = base64.b64decode(imgstr)
-#             except (ValueError, TypeError, base64.binascii.Error) as e:
-#                 raise serializers.ValidationError(f'Invalid image: {e}')
-#             file_name = str(uuid.uuid4())[:12]
-#             file_extension = self.get_file_extension(file_name, decoded_file)
-#             complete_file_name = f"{file_name}.{file_extension}"
-#             data = ContentFile(decoded_file, name=complete_file_name)
-#         return super().to_internal_value(data)
-
-#     def get_file_extension(self):
-#         """Получение расширения файла."""
-#         return 'jpg'
 
 
 class Base64ImageField(serializers.ImageField):
