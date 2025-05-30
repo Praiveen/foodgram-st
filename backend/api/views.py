@@ -28,6 +28,7 @@ from .serializers import (
     UserCreateResponseSerializer,
     UserAvatarSerializer,
     SubscriptionListSerializer,
+    SubscriptionCreateSerializer,
     SubscribeResponseSerializer
 )
 
@@ -119,7 +120,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         user = request.user
 
         if request.method == 'POST':
-            if Favorite.objects.filter(user=user, recipe=recipe).exists():
+            if user.favorites.filter(recipe=recipe).exists():
                 return Response(
                     {'errors': 'Recipe already in favorites.'},
                     status=status.HTTP_400_BAD_REQUEST
@@ -130,7 +131,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        favorite_instance = Favorite.objects.filter(user=user, recipe=recipe)
+        favorite_instance = user.favorites.filter(recipe=recipe)
         if not favorite_instance.exists():
             return Response(
                 {'errors': 'Recipe not in favorites.'},
@@ -149,7 +150,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         user = request.user
 
         if request.method == 'POST':
-            if ShoppingCart.objects.filter(user=user, recipe=recipe).exists():
+            if user.shopping_cart.filter(recipe=recipe).exists():
                 return Response(
                     {'errors': 'Recipe already in shopping cart.'},
                     status=status.HTTP_400_BAD_REQUEST
@@ -160,7 +161,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        cart_item = ShoppingCart.objects.filter(user=user, recipe=recipe)
+        cart_item = user.shopping_cart.filter(recipe=recipe)
         if not cart_item.exists():
             return Response(
                 {'errors': 'Recipe not in shopping cart.'},
@@ -265,12 +266,9 @@ class CustomUserViewSet(djoser_views.UserViewSet):
                 user, data=request.data,
                 context=self.get_serializer_context()
             )
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            return Response(
-                serializer.errors, status=status.HTTP_400_BAD_REQUEST
-            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
         elif request.method == 'DELETE':
             if user.avatar:
@@ -288,8 +286,7 @@ class SubscriptionsListView(ListAPIView):
     def get_queryset(self):
         """Получение списка подписок."""
         user = self.request.user
-        subscribed_author_ids = Subscription.objects.filter(user=user
-                                                            ).values_list(
+        subscribed_author_ids = user.follower.values_list(
             'author_id', flat=True
         )
 
@@ -303,33 +300,22 @@ class SubscribeView(APIView):
 
     def post(self, request, id):
         """Подписка на пользователя."""
-        try:
-            author = User.objects.get(id=id)
-        except User.DoesNotExist:
-            return Response(
-                {'errors': 'Пользователь для подписки не найден.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
+        author = get_object_or_404(User, id=id)
         user = request.user
-        if user == author:
-            return Response(
-                {'errors': 'Нельзя подписаться на самого себя.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
-        if Subscription.objects.filter(user=user, author=author).exists():
-            return Response(
-                {'errors': 'Вы уже подписаны на этого пользователя.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+        serializer_create = SubscriptionCreateSerializer(
+            data={'author': author.pk},
+            context={'request': request}
+        )
+        serializer_create.is_valid(raise_exception=True)
         Subscription.objects.create(user=user, author=author)
 
         serializer_context = {'request': request}
-        serializer = SubscribeResponseSerializer(
-            author, context=serializer_context)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        response_serializer = SubscribeResponseSerializer(
+            instance=author, context=serializer_context
+        )
+        return Response(response_serializer.data,
+                        status=status.HTTP_201_CREATED)
 
     def delete(self, request, id):
         """Отписка от пользователя."""
@@ -342,8 +328,8 @@ class SubscribeView(APIView):
             )
 
         user = request.user
-        subscription = Subscription.objects.filter(
-            user=user, author=author).first()
+        subscription = user.follower.filter(
+            author=author).first()
 
         if not subscription:
             return Response(

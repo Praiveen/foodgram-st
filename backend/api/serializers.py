@@ -8,6 +8,7 @@ from djoser.serializers import UserSerializer as DjoserUserSerializer
 from rest_framework import serializers
 
 from users.models import User, Subscription
+from foodgram_backend import constants
 
 from recipes.models import (
     Ingredient,
@@ -71,8 +72,7 @@ class UserSerializer(DjoserUserSerializer):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return False
-        return Subscription.objects.filter(user=request.user,
-                                           author=obj).exists()
+        return request.user.follower.filter(author=obj).exists()
 
     def get_avatar(self, obj):
         """Возвращает абсолютный URL для аватара."""
@@ -168,6 +168,36 @@ class UserWithRecipesSerializer(UserSerializer):
 SubscriptionListSerializer = UserWithRecipesSerializer
 
 
+class SubscriptionCreateSerializer(serializers.ModelSerializer):
+    """Сериализатор для создания подписки."""
+
+    author = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+
+    class Meta:
+        """Мета-класс для SubscriptionCreateSerializer."""
+
+        model = Subscription
+        fields = ('author',)
+
+    def validate(self, attrs):
+        """Проверка данных для создания подписки."""
+        request_user = self.context['request'].user
+        author_to_subscribe = attrs['author']
+
+        if request_user == author_to_subscribe:
+            raise serializers.ValidationError(
+                "Нельзя подписаться на самого себя."
+            )
+
+        if Subscription.objects.filter(
+            user=request_user, author=author_to_subscribe
+        ).exists():
+            raise serializers.ValidationError(
+                "Вы уже подписаны на этого пользователя."
+            )
+        return attrs
+
+
 class SubscribeResponseSerializer(UserSerializer):
     """Сериализатор для ответа при подписке/отписке."""
 
@@ -232,7 +262,10 @@ class RecipeCreateIngredientSerializer(serializers.ModelSerializer):
 
     id = serializers.PrimaryKeyRelatedField(
         queryset=Ingredient.objects.all(), source='ingredient')
-    amount = serializers.IntegerField()
+    amount = serializers.IntegerField(
+        min_value=constants.AMOUNT_INGREDIENTS_MIN,
+        max_value=constants.AMOUNT_INGREDIENTS_MAX
+    )
 
     class Meta:
         """Мета класс для сериализатора ингредиентов в рецепте."""
@@ -274,21 +307,22 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def get_author(self, obj):
         """Получение автора рецепта."""
-        from .serializers import UserSerializer
         return UserSerializer(obj.author, context=self.context).data
 
     def get_is_favorited(self, obj):
         """Получение информации о том, является ли рецепт в избранном."""
-        user = self.context.get('request').user
-        if user.is_authenticated:
-            return obj.favorites.filter(user=user).exists()
+        if 'request' in self.context and self.context['request']:
+            user = self.context['request'].user
+            if user.is_authenticated:
+                return obj.favorites.filter(user=user).exists()
         return False
 
     def get_is_in_shopping_cart(self, obj):
         """Получение информации о том, является ли рецепт в списке покупок."""
-        user = self.context.get('request').user
-        if user.is_authenticated:
-            return obj.shopping_carts.filter(user=user).exists()
+        if 'request' in self.context and self.context['request']:
+            user = self.context['request'].user
+            if user.is_authenticated:
+                return obj.shopping_carts.filter(user=user).exists()
         return False
 
     def get_image(self, obj):
@@ -306,6 +340,10 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
 
     ingredients = RecipeCreateIngredientSerializer(many=True)
     image = Base64ImageField(required=True, allow_null=False)
+    cooking_time = serializers.IntegerField(
+        min_value=constants.COOKING_TIME_MIN,
+        max_value=constants.COOKING_TIME_MAX
+    )
 
     class Meta:
         """Мета класс для сериализатора создания и обновления рецепта."""
@@ -327,26 +365,17 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     'Ингредиенты не должны повторяться.')
             seen.add(ingredient)
-            if item['amount'] <= 0:
-                raise serializers.ValidationError(
-                    'Количество ингредиента должно быть больше 0.')
-        return value
-
-    def validate_cooking_time(self, value):
-        """Валидация времени приготовления."""
-        if value <= 0:
-            raise serializers.ValidationError(
-                'Время приготовления должно быть больше 0.')
         return value
 
     def create_ingredients(self, recipe, ingredients_data):
         """Создание ингредиентов в рецепте."""
-        for item in ingredients_data:
-            RecipeIngredient.objects.create(
+        RecipeIngredient.objects.bulk_create([
+            RecipeIngredient(
                 recipe=recipe,
                 ingredient=item['ingredient'],
                 amount=item['amount']
-            )
+            ) for item in ingredients_data
+        ])
 
     def create(self, validated_data):
         """Создание рецепта."""
